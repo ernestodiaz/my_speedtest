@@ -1,0 +1,91 @@
+<!doctype html>
+<html lang="en">
+  <head>
+    <meta charset="utf-8" />
+    <meta name="viewport" content="width=device-width, initial-scale=1" />
+    <title>Network Speed Test</title>
+    <link rel="stylesheet" href="/style.css" />
+    <link rel="icon" href="data:," />
+  </head>
+  <body>
+    <main class="app viz-root">
+      <header class="head">
+        <h1 class="head__title">Network Speed Test</h1>
+        <p class="head__sub">
+          Latency, download and upload between this server and your browser.
+        </p>
+      </header>
+
+      <section class="stage" aria-live="polite">
+        <p class="stage__phase" id="phase">Ready</p>
+        <p class="stage__figure">
+          <span id="liveValue">&mdash;</span><span class="stage__unit" id="liveUnit"></span>
+        </p>
+        <div class="stage__track" role="progressbar" aria-label="Test progress"
+             aria-valuemin="0" aria-valuemax="100" aria-valuenow="0" id="progressBar">
+          <div class="stage__fill" id="progressFill"></div>
+        </div>
+        <button class="btn" id="start" type="button">Start Test</button>
+        <p class="stage__error" id="error" hidden></p>
+      </section>
+
+      <figure class="chart" id="chart" hidden>
+        <figcaption class="chart__head">
+          <span class="chart__title">Throughput over time</span>
+          <span class="legend">
+            <span class="key"><i class="key__swatch key__swatch--dl"></i>Download</span>
+            <span class="key"><i class="key__swatch key__swatch--ul"></i>Upload</span>
+          </span>
+        </figcaption>
+        <div class="chart__plot">
+          <canvas id="canvas" role="img"
+                  aria-label="Line chart of download and upload throughput in megabits per second over the duration of the test"></canvas>
+          <div class="tip" id="tip" hidden></div>
+        </div>
+        <button class="linkbtn" id="tableToggle" type="button" aria-expanded="false" aria-controls="tableView">
+          Table view
+        </button>
+        <div class="tableview" id="tableView" hidden></div>
+      </figure>
+
+      <section class="results" id="results" hidden>
+        <div class="tiles">
+          <div class="tile">
+            <span class="tile__label">Latency</span>
+            <span class="tile__value" id="rLatency">&mdash;</span>
+            <span class="tile__unit">ms</span>
+          </div>
+          <div class="tile">
+            <span class="tile__label">Jitter</span>
+            <span class="tile__value" id="rJitter">&mdash;</span>
+            <span class="tile__unit">ms</span>
+          </div>
+          <div class="tile">
+            <span class="tile__label"><i class="key__swatch key__swatch--dl"></i>Download</span>
+            <span class="tile__value" id="rDown">&mdash;</span>
+            <span class="tile__unit">Mbps</span>
+          </div>
+          <div class="tile">
+            <span class="tile__label"><i class="key__swatch key__swatch--ul"></i>Upload</span>
+            <span class="tile__value" id="rUp">&mdash;</span>
+            <span class="tile__unit">Mbps</span>
+          </div>
+        </div>
+
+        <details class="details">
+          <summary>Measurement detail</summary>
+          <div class="details__body" id="detailBody"></div>
+        </details>
+      </section>
+
+      <p class="foot" id="serverInfo"></p>
+      <p class="foot foot--note">
+        Figures are application-layer goodput to this server only &mdash; they exclude
+        TCP/IP and TLS framing, and reflect the route to this host rather than your
+        connection in general.
+      </p>
+    </main>
+
+    <script type="module" src="/js/main.js"></script>
+  </body>
+</html>

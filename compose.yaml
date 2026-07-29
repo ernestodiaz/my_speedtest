@@ -1,0 +1,41 @@
+services:
+  speedtest:
+    build: .
+    image: my-speedtest
+    container_name: my-speedtest
+    restart: unless-stopped
+
+    # Reaps the worker processes the primary forks, so a crashed worker never
+    # lingers as a zombie under PID 1.
+    init: true
+
+    environment:
+      PORT: "8080"
+      # Defaults to min(cores, 8). Raise toward the core count on a multi-gig
+      # host; a single process cannot saturate 10 GbE, especially on receive.
+      # WORKERS: "8"
+      # TEST_DURATION_MS: "12000"
+      # PARALLEL_STREAMS: "6"
+
+    # Host networking is REQUIRED to measure a fast link. Docker's default
+    # bridge NATs every packet through netfilter, which both caps throughput
+    # well below 10 Gbps and burns CPU that then shows up as a slow result.
+    #
+    # Linux only. On Docker Desktop for Windows/macOS this is the Linux VM's
+    # host, not your machine -- the VM's virtual NIC will cap the figure no
+    # matter what is configured here. Use a Linux host to validate multi-gig.
+    network_mode: host
+
+    # ---- Bridge fallback -------------------------------------------------
+    # For development, or where host networking is unavailable. Correctness is
+    # unaffected; the throughput ceiling is not. Comment out network_mode above
+    # and uncomment these two lines.
+    # ports:
+    #   - "8080:8080"
+
+    healthcheck:
+      test: ["CMD", "node", "-e", "fetch('http://127.0.0.1:'+(process.env.PORT||8080)+'/health').then(r=>process.exit(r.ok?0:1)).catch(()=>process.exit(1))"]
+      interval: 30s
+      timeout: 3s
+      start_period: 5s
+      retries: 3
