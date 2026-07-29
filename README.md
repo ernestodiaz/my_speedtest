@@ -7,6 +7,35 @@ Zero runtime dependencies — the backend is `node:*` builtins, the frontend is
 vanilla HTML/CSS/ES modules with a hand-drawn `<canvas>` chart. No build step,
 no bundler, no CDN calls (it works fully offline inside a container).
 
+## The dashboard
+
+![The speed test dashboard after a completed run: a 287 Mbps headline reading, a
+throughput-over-time chart showing the download phase then the upload phase, and
+result tiles for latency, jitter, download and upload](docs/dashboard.png)
+
+A completed run against a 2-worker Linux host over Wi-Fi. Reading it:
+
+- **One timeline, one axis.** Download (blue) runs 0–12s, upload (orange) 13–27s.
+  They never share an instant, so the single Mbps scale stays honest — there is
+  no second y-axis to invent a correlation.
+- **The upload trace is spikier than the download trace**, and that is expected
+  rather than noise. The live line is the client's *optimistic* count: XHR
+  reports bytes as the kernel accepts them into the send buffer, which arrives in
+  bursts. The **492 Mbps tile is server-confirmed** — the server timed what it
+  actually received. When the two disagree, the tile is right.
+- **Warm-up is already excluded** from both tiles; the first 2s of each phase is
+  discarded because TCP slow start makes early throughput a ramp, not a rate.
+- **Latency 4.99 ms / jitter 1.76 ms** come from 20 probes with the first 2
+  discarded, so no handshake cost is folded in.
+- The footer names the server, the worker count and the negotiated HTTP version
+  (`HTTP/1.1` here — which is deliberate, see *Scaling and accuracy*).
+- **Table view** under the chart exposes every plotted sample as text, so nothing
+  in the figure is reachable only by colour or only by hover.
+
+*Measurement detail* expands to the full breakdown: percentiles, standard
+deviation, bytes transferred, stream count, the upload transport actually used,
+and the server's payload configuration.
+
 ## Quick start
 
 ```bash
