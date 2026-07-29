@@ -1,6 +1,11 @@
 /* Palette roles. Dark values are declared under both the OS media query and the
-   data-theme scope so a viewer toggle wins in either direction. */
-.viz-root {
+   data-theme scope so a viewer toggle wins in either direction.
+
+   These live on :root, not on .viz-root. `body` sets `color: var(--text-primary)`
+   and body is outside .viz-root, so scoping them lower left that var undefined --
+   color then fell back to the inherited default (black) and every value in the
+   page inherited black text on the dark surface. */
+:root {
   color-scheme: light;
   --surface-1: #fcfcfb;
   --plane: #f9f9f7;
@@ -16,7 +21,7 @@
 }
 
 @media (prefers-color-scheme: dark) {
-  :root:where(:not([data-theme='light'])) .viz-root {
+  :root:not([data-theme='light']) {
     color-scheme: dark;
     --surface-1: #1a1a19;
     --plane: #0d0d0d;
@@ -32,7 +37,7 @@
   }
 }
 
-:root[data-theme='dark'] .viz-root {
+:root[data-theme='dark'] {
   color-scheme: dark;
   --surface-1: #1a1a19;
   --plane: #0d0d0d;
@@ -115,6 +120,9 @@ body {
 
 .stage__figure {
   margin: 0;
+  /* The headline reading. Explicit rather than inherited so it cannot be
+     dragged off-token by an ancestor. White on dark, near-black on light. */
+  color: var(--text-primary);
   font-size: 64px;
   line-height: 1;
   font-weight: 600;
@@ -369,6 +377,7 @@ body {
 }
 
 .tile__value {
+  color: var(--text-primary);
   font-size: 26px;
   font-weight: 600;
   letter-spacing: -0.02em;
