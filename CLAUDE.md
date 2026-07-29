@@ -89,6 +89,15 @@ sizing — the abort-on-duration design replaces both.
 onto one TCP connection and the multi-stream technique silently stops working.
 If TLS is ever added, pin the test routes to HTTP/1.1.
 
+**Feature detection is not transport detection.** Chrome implements streaming
+request bodies (`duplex: 'half'`) but refuses to send one over HTTP/1.1 — the
+fetch rejects with a bare `Failed to fetch`. The API probe in
+`public/js/upload.js` returns true anyway, so the streaming path is additionally
+gated on the HTTP version from `/info`, and the discarded warm-up phase acts as
+a live probe that flips `streamingDisabled` on failure. On a normal plain-HTTP
+deployment the multi-POST/XHR path is the one that actually runs; do not
+"simplify" by trusting `supportsRequestStreams` alone.
+
 **Limits are per worker.** Each worker has its own `limiter`; a shared counter
 would need IPC on the hot path. `/info` reports the answering worker's count, and
 the server-wide cap is `MAX_CONCURRENT_STREAMS × WORKERS`.

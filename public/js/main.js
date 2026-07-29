@@ -80,6 +80,10 @@ async function runTest() {
       durationMs: t.testDurationMs,
       warmupMs: t.warmupMs,
       chunkBytes: t.uploadChunkBytes,
+      // Chrome refuses to send a streaming request body over HTTP/1.1, so the
+      // transport the server actually negotiated decides whether that path is
+      // even worth attempting.
+      allowStreaming: Number.parseInt(info.client.httpVersion, 10) >= 2,
       onSample: ({ mbps, elapsed, durationMs }) => {
         ui.liveSpeed(mbps);
         ui.progress(progressFor('upload', elapsed / durationMs), 'upload');

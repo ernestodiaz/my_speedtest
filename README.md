@@ -81,14 +81,25 @@ server reports one window per request, so there is no way to ask it to ignore th
 first two seconds of a request it is already timing. Keep-alive means the
 measured phase still starts on warm connections.
 
-Two upload transports, chosen by feature detection:
+Two upload transports:
 
-- **Streaming (`duplex: 'half'`)** — one long-lived POST per stream. Real
-  backpressure. Chromium only.
-- **Multi-POST via XHR** — a rolling pool of fixed-size POSTs. XHR rather than
-  fetch purely for `upload.onprogress`; without it the live graph would sit flat
-  and jump once per completed POST. Slightly conservative, because the tail
-  drains with fewer streams in flight.
+- **Multi-POST via XHR** — a rolling pool of fixed-size POSTs. **This is the path
+  a normal deployment uses.** XHR rather than fetch purely for
+  `upload.onprogress`; without it the live graph would sit flat and jump once
+  per completed POST. Slightly conservative, because the tail drains with fewer
+  streams in flight.
+- **Streaming (`duplex: 'half'`)** — one long-lived POST per stream, with real
+  backpressure. Chromium only, **and only over HTTP/2**: Chrome implements
+  streaming request bodies but refuses to send one over HTTP/1.1, rejecting the
+  fetch with a bare `Failed to fetch` before a byte leaves the browser.
+
+Since this app is served over plain HTTP by design, the streaming path is
+normally unreachable — it exists for deployments that put HTTP/2 in front. The
+client therefore gates it on the HTTP version reported by `/info`, not on feature
+detection alone: the API probe returns true in Chrome regardless of transport, so
+detection by itself would confidently pick a path that always fails. The
+discarded warm-up phase doubles as a live probe, so if the attempt fails anyway
+the run falls back to multi-POST without losing the measurement.
 
 **Randomness is generated once** on both ends and retransmitted.
 `crypto.getRandomValues` caps at 64 KiB per call and runs at 1–2 GB/s, so

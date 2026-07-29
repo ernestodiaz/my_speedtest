@@ -37,9 +37,11 @@ function bodyOfSize(bytes) {
 }
 
 /**
- * Streaming request bodies are Chromium-only at present. The canonical probe:
- * constructing a Request with a ReadableStream body throws where unsupported,
- * and only a supporting implementation reads the `duplex` getter.
+ * Does this browser implement streaming request bodies at all? The canonical
+ * probe: constructing a Request with a ReadableStream body throws where
+ * unsupported, and only a supporting implementation reads the `duplex` getter.
+ *
+ * API support is necessary but NOT sufficient -- see `streamingUsable()`.
  */
 const supportsRequestStreams = (() => {
   let duplexAccessed = false;
@@ -62,6 +64,30 @@ const supportsRequestStreams = (() => {
 
 function isAbort(err) {
   return err?.name === 'AbortError';
+}
+
+/**
+ * Set once the streaming transport has been proven not to work on this
+ * connection, so we never pay for a second failed attempt.
+ */
+let streamingDisabled = false;
+
+/**
+ * Whether to actually attempt the streaming path.
+ *
+ * Chrome implements streaming request bodies but refuses to send one over
+ * HTTP/1.1 -- the fetch rejects with a bare "Failed to fetch" before a byte
+ * leaves the browser. This app is served over plain HTTP *by design* (HTTP/2
+ * would multiplex the parallel download streams onto one TCP connection and
+ * silently defeat them), so on a normal deployment the streaming path is
+ * unusable no matter what the feature probe says.
+ *
+ * `allowStreaming` therefore carries the negotiated HTTP version from /info.
+ * The runtime fallback below is still kept as a backstop, because a proxy can
+ * make the version we observed on one request differ from the next.
+ */
+function streamingUsable(allowStreaming) {
+  return supportsRequestStreams && allowStreaming && !streamingDisabled;
 }
 
 /** One long-lived POST that streams until the deadline, then closes cleanly. */
@@ -138,7 +164,7 @@ function postOnce({ body, signal, onBytes }) {
  * buffer -- not that they crossed the wire. The server times what it actually
  * received, and that is what we divide.
  */
-async function uploadPhase({ streams, durationMs, chunkBytes, signal, onBytes }) {
+async function uploadPhase({ streams, durationMs, chunkBytes, signal, onBytes, useStreaming }) {
   const controller = new AbortController();
   const abortAll = () => controller.abort();
   signal?.addEventListener('abort', abortAll, { once: true });
@@ -150,7 +176,7 @@ async function uploadPhase({ streams, durationMs, chunkBytes, signal, onBytes })
   let lastCompletion = startedAt;
 
   const worker = async () => {
-    if (supportsRequestStreams) {
+    if (useStreaming) {
       const r = await streamUntil({ deadline, signal: controller.signal, onBytes });
       lastCompletion = performance.now();
       results.push(r);
@@ -184,7 +210,7 @@ async function uploadPhase({ streams, durationMs, chunkBytes, signal, onBytes })
   //    ending at the last completion. Slightly conservative -- the tail drains
   //    with fewer streams in flight -- which errs toward under-reporting.
   let windowMs;
-  if (supportsRequestStreams && results.length) {
+  if (useStreaming && results.length) {
     windowMs = results.reduce((a, r) => a + (r?.serverMs ?? 0), 0) / results.length;
   } else {
     windowMs = lastCompletion - startedAt;
@@ -215,6 +241,7 @@ export async function runUpload({
   chunkBytes,
   signal,
   onSample,
+  allowStreaming = false,
 }) {
   const startedAt = performance.now();
   let totalBytes = 0;
@@ -240,21 +267,50 @@ export async function runUpload({
   }, SAMPLE_INTERVAL_MS);
 
   try {
+    // The warm-up doubles as the transport probe. Its result is discarded
+    // anyway, so discovering here that streaming is unusable costs nothing --
+    // whereas discovering it during the measured phase would lose the run.
     if (warmupMs > 0) {
-      await uploadPhase({ streams, durationMs: warmupMs, chunkBytes, signal, onBytes });
+      try {
+        await uploadPhase({
+          streams,
+          durationMs: warmupMs,
+          chunkBytes,
+          signal,
+          onBytes,
+          useStreaming: streamingUsable(allowStreaming),
+        });
+      } catch (err) {
+        if (isAbort(err) || !streamingUsable(allowStreaming)) throw err;
+        // The streaming path failed for a reason other than us aborting it.
+        // Give up on it permanently and warm up again over multi-POST.
+        streamingDisabled = true;
+        await uploadPhase({
+          streams,
+          durationMs: warmupMs,
+          chunkBytes,
+          signal,
+          onBytes,
+          useStreaming: false,
+        });
+      }
     }
+
+    const useStreaming = streamingUsable(allowStreaming);
     const measured = await uploadPhase({
       streams,
       durationMs: Math.max(1000, durationMs - warmupMs),
       chunkBytes,
       signal,
       onBytes,
+      useStreaming,
     });
+
     return {
       ...measured,
       streams,
       series,
-      method: supportsRequestStreams ? 'streaming (duplex)' : 'multi-POST (XHR)',
+      method: useStreaming ? 'streaming (duplex)' : 'multi-POST (XHR)',
       warmupDiscarded: warmupMs > 0,
     };
   } finally {
